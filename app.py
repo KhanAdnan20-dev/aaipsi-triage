@@ -101,29 +101,59 @@ if dispatch_btn:
             st.success("⚡ AI Analysis Complete!")
             
             # Clear the placeholder and build a clean dashboard layout
+# Clear the placeholder and build a clean dashboard layout
             with console_placeholder.container():
                 st.markdown("#### 🧠 Intelligent Triage Assessment")
                 
                 # Row 1: Key Metrics
                 m1, m2, m3 = st.columns(3)
                 
-                severity = result.get("severity_level", "Unknown")
-                # Add a visual warning for high severity
-                sev_color = "🔴" if str(severity) == "1" else "🟠" 
+                # 1. Dynamic Severity Logic
+                severity = str(result.get("severity_level", "3"))
+                if severity == "1":
+                    sev_color = "🔴"
+                    status_word = "CRITICAL"
+                elif severity == "2":
+                    sev_color = "🟠"
+                    status_word = "URGENT"
+                else:
+                    sev_color = "🟢"
+                    status_word = "NON-URGENT"
                 
-                m1.metric(label="Severity Level", value=f"{sev_color} Priority {severity}")
-                m2.metric(label="Trauma Class", value=result.get("trauma_type", "Unknown"))
+                # Use "Lvl" instead of "Priority" to stop the text from getting cut off
+                m1.metric(label=f"Status: {status_word}", value=f"{sev_color} Lvl {severity}")
+                
+                # 2. Clean up "Unknown" trauma classes
+                trauma_class = result.get("trauma_type", "General")
+                if trauma_class == "Unknown" or trauma_class == "": 
+                    trauma_class = "General Consult"
+                m2.metric(label="Trauma Class", value=trauma_class)
+                
                 m3.metric(label="Inference Speed", value=result.get("execution_latency", "N/A"))
                 
                 st.markdown("---")
                 
-                # Row 2: Actionable Data
-                equipment_list = result.get('recommended_equipment', ['Standard Kit'])
-                st.markdown(f"**🎒 Required Dispatch Equipment:**")
+                # 3. Dynamic Equipment Enrichment
+                raw_equipment = result.get('recommended_equipment', [])
                 
-                # Display equipment as styled tags/bullets
-                eq_string = " • ".join(equipment_list)
-                st.info(eq_string)
+                # If the AI is lazy and just says "Standard Kit", we force a better display based on severity
+                if not raw_equipment or raw_equipment == ["Standard Kit"] or raw_equipment == ["Standard ALS Kit"]:
+                    if severity == "1":
+                        equipment_list = ["Defibrillator", "Oxygen", "Advanced Airway Kit", "IV Fluids"]
+                    elif severity == "2":
+                        equipment_list = ["Oxygen", "Stretcher", "Basic Trauma Kit"]
+                    else:
+                        equipment_list = ["Standard Vitals Kit", "Basic First Aid"]
+                else:
+                    equipment_list = raw_equipment
+
+                st.markdown("**🎒 Required Dispatch Equipment:**")
+                
+                # 4. Render equipment as custom UI tags instead of a plain string
+                tags = "".join([f"<span style='background-color: #2e3138; padding: 5px 12px; border-radius: 15px; margin-right: 8px; font-size: 14px; border: 1px solid #555;'>{eq}</span>" for eq in equipment_list])
+                st.markdown(tags, unsafe_allow_html=True)
+                
+                st.markdown("<br>", unsafe_allow_html=True)
                 
                 # Row 3: System Accountability Log
                 bypass = result.get("bypass_llm", False)
