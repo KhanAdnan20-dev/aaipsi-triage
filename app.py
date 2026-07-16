@@ -97,7 +97,7 @@ if dispatch_btn:
                 except:
                     pass
         
-if result:
+        if result:
             st.success("⚡ AI Analysis Complete!")
             
             # Clear the placeholder and build a clean dashboard layout
