@@ -184,13 +184,46 @@ if dispatch_btn:
 
                 map_placeholder.pydeck_chart(pdk.Deck(layers=[layer_path1, layer_path2, layer_pat, layer_hosp], initial_view_state=view_state))
 
-                status_text.warning("🚨 Ambulance Dispatched...")
-                for i in range(0, len(route_1), 4):
-                    amb_layer = pdk.Layer("ScatterplotLayer", data=[{"pos": route_1[i]}], get_position="pos", get_fill_color=[255, 255, 255, 255], get_radius=400)
-                    map_placeholder.pydeck_chart(pdk.Deck(layers=[layer_path1, layer_path2, layer_pat, layer_hosp, amb_layer], initial_view_state=view_state))
-                    time.sleep(0.05)
+                status_text.warning("🚨 Ambulance Dispatched... Tracking Live.")
 
+                # The Live GPS Follow-Camera Loop
+                for i in range(0, len(route_1), 3):  # Lower step means smoother animation
+                    current_position = route_1[i]
+
+                    # 1. The Ambulance Marker
+                    amb_layer = pdk.Layer(
+                        "ScatterplotLayer",
+                        data=[{"pos": current_position}],
+                        get_position="pos",
+                        get_fill_color=[255, 255, 255, 255],
+                        get_radius=150  # Smaller, sharper dot
+                    )
+
+                    # 2. Dynamic 3D Camera tracking the vehicle
+                    dynamic_view = pdk.ViewState(
+                        latitude=current_position[1],
+                        longitude=current_position[0],
+                        zoom=15.5,  # Zoomed in close to the streets
+                        pitch=65,   # Highly tilted 3D perspective
+                        bearing=0
+                    )
+
+                    # 3. Re-render the map frame
+                    map_placeholder.pydeck_chart(pdk.Deck(
+                        layers=[layer_path1, layer_path2, layer_pat, layer_hosp, amb_layer],
+                        initial_view_state=dynamic_view,
+                        map_style='mapbox://styles/mapbox/dark-v11'
+                    ))
+
+                    time.sleep(0.08)  # Frame rate pacing
+
+                # Zoom back out when it arrives
                 status_text.success(f"✅ Route to {target_hospital['name']} Active.")
+                map_placeholder.pydeck_chart(pdk.Deck(
+                    layers=[layer_path1, layer_path2, layer_pat, layer_hosp],
+                    initial_view_state=view_state,
+                    map_style='mapbox://styles/mapbox/dark-v11'
+                ))
 
             # --- SCENARIO B: NO AMBULANCE NEEDED (Severity 3) ---
             else:
