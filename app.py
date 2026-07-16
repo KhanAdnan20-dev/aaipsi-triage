@@ -42,17 +42,33 @@ with st.sidebar:
 # ==============================================================================
 st.title("🚑 AAIPSI: Autonomous Medical Dispatch")
 st.markdown("---")
+                
+                # 3. Dynamic Equipment Enrichment & Dispatch Status
+                dispatch_needed = result.get("dispatch_required", False)
+                
+                if not dispatch_needed:
+                    # Hide equipment entirely if the ambulance is halted
+                    st.markdown("**🛑 Dispatch Status:**")
+                    st.info("Emergency units standing down. No physical dispatch required. Recommend outpatient follow-up.")
+                else:
+                    raw_equipment = result.get('recommended_equipment', [])
+                    
+                    # If the AI is lazy and just says "Standard Kit", we force a better display based on severity
+                    if not raw_equipment or raw_equipment == ["Standard Kit"] or raw_equipment == ["Standard ALS Kit"] or raw_equipment == ["Unknown"]:
+                        if severity == "1":
+                            equipment_list = ["Defibrillator", "Oxygen", "Advanced Airway Kit", "IV Fluids"]
+                        else:
+                            equipment_list = ["Oxygen", "Stretcher", "Basic Trauma Kit"]
+                    else:
+                        equipment_list = raw_equipment
 
-col1, col2 = st.columns([1.2, 2])
-
-with col1:
-    st.markdown('<p class="big-font">1. Incoming 911 Triage</p>', unsafe_allow_html=True)
-    scenario = st.selectbox("Select Live Scenario:", [
-        "myfatherisnotopeningb his eyese from 5 mins",
-        "Help, my friend was shot in the chest!"
-    ])
-    user_input = st.text_area("Audio Transcript Transcription:", value=scenario, height=100)
-    dispatch_btn = st.button("EXECUTE AAIPSI PROTOCOL", type="primary", use_container_width=True)
+                    st.markdown("**🎒 Required Dispatch Equipment:**")
+                    
+                    # Render equipment as custom UI tags
+                    tags = "".join([f"<span style='background-color: #2e3138; padding: 5px 12px; border-radius: 15px; margin-right: 8px; font-size: 14px; border: 1px solid #555;'>{eq}</span>" for eq in equipment_list])
+                    st.markdown(tags, unsafe_allow_html=True)
+                
+                st.markdown("<br>", unsafe_allow_html=True)
     
     st.markdown("### Agent Telemetry")
     console_placeholder = st.empty()
