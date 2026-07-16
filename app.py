@@ -33,7 +33,6 @@ def get_osrm_route(lon1, lat1, lon2, lat2):
 # ==============================================================================
 with st.sidebar:
     st.title("Cloud Configuration")
-    # I have set this to your newest Firebase project URL automatically
     db_url = st.text_input("Firebase Database URL:", value="https://hackproj-58daf-default-rtdb.firebaseio.com/")
     st.markdown("---")
     st.markdown("**Status:** 🟢 Connected to Database Middleware")
@@ -101,7 +100,6 @@ if dispatch_btn:
             st.success("⚡ AI Analysis Complete!")
             
             # Clear the placeholder and build a clean dashboard layout
-# Clear the placeholder and build a clean dashboard layout
             with console_placeholder.container():
                 st.markdown("#### 🧠 Intelligent Triage Assessment")
                 
@@ -164,32 +162,46 @@ if dispatch_btn:
             st.error("❌ Timeout: Make sure the listener loop is running in Kaggle.")
 
     # ==============================================================================
-    # MAP ANIMATION
+    # MAP ANIMATION & DISPATCH DECISION
     # ==============================================================================
-    if result and result.get("dispatch_required"):
+    if result:
         with col2:
             trauma = result.get("trauma_type", "Default")
             target_hospital = HOSPITALS.get(trauma, HOSPITALS["Default"])
-            status_text.info(f"**Selected:** {target_hospital['name']} for {trauma} trauma.")
             
-            amb_coords = [72.8561, 19.0176]
-            pat_coords = [72.8295, 19.0596]
-            hosp_coords = target_hospital["coords"]
+            # --- SCENARIO A: AMBULANCE REQUIRED (Severity 1 or 2) ---
+            if result.get("dispatch_required"):
+                status_text.info(f"**Selected:** {target_hospital['name']} for {trauma} trauma.")
+                
+                amb_coords = [72.8561, 19.0176]
+                pat_coords = [72.8295, 19.0596]
+                hosp_coords = target_hospital["coords"]
+                
+                route_1 = get_osrm_route(amb_coords[0], amb_coords[1], pat_coords[0], pat_coords[1])
+                route_2 = get_osrm_route(pat_coords[0], pat_coords[1], hosp_coords[0], hosp_coords[1])
+                
+                layer_pat = pdk.Layer("ScatterplotLayer", data=[{"pos": pat_coords}], get_position="pos", get_fill_color=[255, 0, 0, 255], get_radius=300)
+                layer_hosp = pdk.Layer("ScatterplotLayer", data=[{"pos": hosp_coords}], get_position="pos", get_fill_color=[0, 0, 255, 255], get_radius=300)
+                layer_path1 = pdk.Layer("PathLayer", data=[{"path": route_1}], get_path="path", get_color=[255, 165, 0, 200], width_scale=20)
+                layer_path2 = pdk.Layer("PathLayer", data=[{"path": route_2}], get_path="path", get_color=[0, 255, 0, 200], width_scale=20)
+                
+                map_placeholder.pydeck_chart(pdk.Deck(layers=[layer_path1, layer_path2, layer_pat, layer_hosp], initial_view_state=view_state))
+                
+                status_text.warning("🚨 Ambulance Dispatched...")
+                for i in range(0, len(route_1), 4):
+                    amb_layer = pdk.Layer("ScatterplotLayer", data=[{"pos": route_1[i]}], get_position="pos", get_fill_color=[255, 255, 255, 255], get_radius=400)
+                    map_placeholder.pydeck_chart(pdk.Deck(layers=[layer_path1, layer_path2, layer_pat, layer_hosp, amb_layer], initial_view_state=view_state))
+                    time.sleep(0.05)
+                
+                status_text.success(f"✅ Route to {target_hospital['name']} Active.")
             
-            route_1 = get_osrm_route(amb_coords[0], amb_coords[1], pat_coords[0], pat_coords[1])
-            route_2 = get_osrm_route(pat_coords[0], pat_coords[1], hosp_coords[0], hosp_coords[1])
-            
-            layer_pat = pdk.Layer("ScatterplotLayer", data=[{"pos": pat_coords}], get_position="pos", get_fill_color=[255, 0, 0, 255], get_radius=300)
-            layer_hosp = pdk.Layer("ScatterplotLayer", data=[{"pos": hosp_coords}], get_position="pos", get_fill_color=[0, 0, 255, 255], get_radius=300)
-            layer_path1 = pdk.Layer("PathLayer", data=[{"path": route_1}], get_path="path", get_color=[255, 165, 0, 200], width_scale=20)
-            layer_path2 = pdk.Layer("PathLayer", data=[{"path": route_2}], get_path="path", get_color=[0, 255, 0, 200], width_scale=20)
-            
-            map_placeholder.pydeck_chart(pdk.Deck(layers=[layer_path1, layer_path2, layer_pat, layer_hosp], initial_view_state=view_state))
-            
-            status_text.warning("🚨 Ambulance Dispatched...")
-            for i in range(0, len(route_1), 4):
-                amb_layer = pdk.Layer("ScatterplotLayer", data=[{"pos": route_1[i]}], get_position="pos", get_fill_color=[255, 255, 255, 255], get_radius=400)
-                map_placeholder.pydeck_chart(pdk.Deck(layers=[layer_path1, layer_path2, layer_pat, layer_hosp, amb_layer], initial_view_state=view_state))
-                time.sleep(0.05)
-            
-            status_text.success(f"✅ Route to {target_hospital['name']} Active.")
+            # --- SCENARIO B: NO AMBULANCE NEEDED (Severity 3) ---
+            else:
+                # Show a static map with just the hospital, no ambulance animation
+                hosp_coords = target_hospital["coords"]
+                layer_hosp = pdk.Layer("ScatterplotLayer", data=[{"pos": hosp_coords}], get_position="pos", get_fill_color=[0, 0, 255, 255], get_radius=500)
+                map_placeholder.pydeck_chart(pdk.Deck(layers=[layer_hosp], initial_view_state=view_state))
+                
+                # Big visual indicator that resources were saved
+                status_text.success("🟢 **DISPATCH HALTED:** Patient is stable. Ambulance resources conserved.")
+                st.info(f"**Action Required:** Recommend patient self-transports to {target_hospital['name']} or schedule a telehealth consult.")
