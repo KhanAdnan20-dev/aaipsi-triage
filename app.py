@@ -128,25 +128,30 @@ if dispatch_btn:
 
                 st.markdown("---")
 
-                # 3. Dynamic Equipment Enrichment
-                raw_equipment = result.get('recommended_equipment', [])
-
-                # If the AI is lazy and just says "Standard Kit", we force a better display based on severity
-                if not raw_equipment or raw_equipment == ["Standard Kit"] or raw_equipment == ["Standard ALS Kit"]:
-                    if severity == "1":
-                        equipment_list = ["Defibrillator", "Oxygen", "Advanced Airway Kit", "IV Fluids"]
-                    elif severity == "2":
-                        equipment_list = ["Oxygen", "Stretcher", "Basic Trauma Kit"]
-                    else:
-                        equipment_list = ["Standard Vitals Kit", "Basic First Aid"]
+                # 3. Dynamic Equipment Enrichment & Dispatch Status
+                dispatch_needed = result.get("dispatch_required", False)
+                
+                if not dispatch_needed:
+                    # Hide equipment entirely if the ambulance is halted
+                    st.markdown("**🛑 Dispatch Status:**")
+                    st.info("Emergency units standing down. No physical dispatch required. Recommend outpatient follow-up.")
                 else:
-                    equipment_list = raw_equipment
+                    raw_equipment = result.get('recommended_equipment', [])
+                    
+                    # If the AI is lazy and just says "Standard Kit", we force a better display based on severity
+                    if not raw_equipment or raw_equipment == ["Standard Kit"] or raw_equipment == ["Standard ALS Kit"] or raw_equipment == ["Unknown"]:
+                        if severity == "1":
+                            equipment_list = ["Defibrillator", "Oxygen", "Advanced Airway Kit", "IV Fluids"]
+                        else:
+                            equipment_list = ["Oxygen", "Stretcher", "Basic Trauma Kit"]
+                    else:
+                        equipment_list = raw_equipment
 
-                st.markdown("**🎒 Required Dispatch Equipment:**")
-
-                # 4. Render equipment as custom UI tags instead of a plain string
-                tags = "".join([f"<span style='background-color: #2e3138; padding: 5px 12px; border-radius: 15px; margin-right: 8px; font-size: 14px; border: 1px solid #555;'>{eq}</span>" for eq in equipment_list])
-                st.markdown(tags, unsafe_allow_html=True)
+                    st.markdown("**🎒 Required Dispatch Equipment:**")
+                    
+                    # Render equipment as custom UI tags
+                    tags = "".join([f"<span style='background-color: #2e3138; padding: 5px 12px; border-radius: 15px; margin-right: 8px; font-size: 14px; border: 1px solid #555;'>{eq}</span>" for eq in equipment_list])
+                    st.markdown(tags, unsafe_allow_html=True)
 
                 st.markdown("<br>", unsafe_allow_html=True)
 
