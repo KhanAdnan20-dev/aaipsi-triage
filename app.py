@@ -97,9 +97,39 @@ if dispatch_btn:
                 except:
                     pass
         
-        if result:
-            st.success("⚡ Analysis Complete!")
-            console_placeholder.markdown(f'<div class="console-box">{json.dumps(result, indent=2)}</div>', unsafe_allow_html=True)
+if result:
+            st.success("⚡ AI Analysis Complete!")
+            
+            # Clear the placeholder and build a clean dashboard layout
+            with console_placeholder.container():
+                st.markdown("#### 🧠 Intelligent Triage Assessment")
+                
+                # Row 1: Key Metrics
+                m1, m2, m3 = st.columns(3)
+                
+                severity = result.get("severity_level", "Unknown")
+                # Add a visual warning for high severity
+                sev_color = "🔴" if str(severity) == "1" else "🟠" 
+                
+                m1.metric(label="Severity Level", value=f"{sev_color} Priority {severity}")
+                m2.metric(label="Trauma Class", value=result.get("trauma_type", "Unknown"))
+                m3.metric(label="Inference Speed", value=result.get("execution_latency", "N/A"))
+                
+                st.markdown("---")
+                
+                # Row 2: Actionable Data
+                equipment_list = result.get('recommended_equipment', ['Standard Kit'])
+                st.markdown(f"**🎒 Required Dispatch Equipment:**")
+                
+                # Display equipment as styled tags/bullets
+                eq_string = " • ".join(equipment_list)
+                st.info(eq_string)
+                
+                # Row 3: System Accountability Log
+                bypass = result.get("bypass_llm", False)
+                engine_used = "Deterministic Rules Engine (Layer 1)" if bypass else "Qwen-2.5-7B Neural Engine (Layer 2)"
+                
+                st.caption(f"**Audit Log:** {result.get('system_log', 'Processed successfully')} | **Routing via:** {engine_used}")
         else:
             st.error("❌ Timeout: Make sure the listener loop is running in Kaggle.")
 
