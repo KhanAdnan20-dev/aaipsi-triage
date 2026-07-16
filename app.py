@@ -3,100 +3,133 @@ import pydeck as pdk
 import requests
 import time
 import json
-import pandas as pd
 
-# ==============================================================================
-# 1. CORE ARCHITECTURE CONFIG
-# ==============================================================================
-st.set_page_config(page_title="AAIPSI: Autonomous Agent", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="AAIPSI: Autonomous Agent", layout="wide")
 
-# Inject advanced CSS for the terminal look
 st.markdown("""
     <style>
-    .big-font {font-size:20px !important; font-weight: bold; color: #00ff00;}
-    .console-box {background-color: #0e1117; padding: 20px; border-radius: 8px; font-family: 'Courier New', monospace; color: #00ff00; border: 1px solid #444; height: 300px; overflow-y: scroll;}
+    .big-font {font-size:22px !important; font-weight: bold; color: #ff4b4b;}
+    .console-box {background-color: #0e1117; padding: 15px; border-radius: 5px; font-family: monospace; color: #00ff00; border: 1px solid #333;}
     </style>
 """, unsafe_allow_html=True)
 
-# Hospital Geo-Coordinates for Mumbai Routing
 HOSPITALS = {
-    "Penetrating": {"name": "Sion Trauma Center", "coords": [72.8624, 19.0363]},
     "Neurological": {"name": "Lilavati Hospital (Neuro Unit)", "coords": [72.8285, 19.0510]},
     "Cardiac": {"name": "Holy Family (Cardiac Center)", "coords": [72.8315, 19.0550]},
+    "Penetrating": {"name": "Sion Trauma Center", "coords": [72.8624, 19.0363]},
     "Default": {"name": "City General Hospital", "coords": [72.8400, 19.0500]}
 }
 
-# ==============================================================================
-# 2. NETWORK & ROUTING ENGINE
-# ==============================================================================
-def fetch_route(start, end):
-    """Fetches geometry from OSRM public API."""
-    url = f"http://router.project-osrm.org/route/v1/driving/{start[0]},{start[1]};{end[0]},{end[1]}?overview=full&geometries=geojson"
+def get_osrm_route(lon1, lat1, lon2, lat2):
+    url = f"http://router.project-osrm.org/route/v1/driving/{lon1},{lat1};{lon2},{lat2}?overview=full&geometries=geojson"
     try:
         res = requests.get(url, timeout=5).json()
-        return res["routes"][0]["geometry"]["coordinates"]
+        return res["routes"][0]["geometry"]["coordinates"] if res.get("code") == "Ok" else []
     except:
         return []
 
 # ==============================================================================
-# 3. SIDEBAR CONFIGURATION
+# SIDEBAR CONFIGURATION
 # ==============================================================================
 with st.sidebar:
-    st.title("⚙️ AAIPSI System Config")
-    st.caption("Deployment: TSEC Hackathon 2026")
-    mode = st.radio("Pipeline Mode:", ["Cloud GPU (Kaggle)", "Local Simulation"])
-    api_url = st.text_input("Kaggle Triage API Endpoint:", "https://your-cloudflare-tunnel.trycloudflare.com/triage")
+    st.title("Cloud Configuration")
+    # I have set this to your newest Firebase project URL automatically
+    db_url = st.text_input("Firebase Database URL:", value="https://hackproj-58daf-default-rtdb.firebaseio.com/")
     st.markdown("---")
-    st.info("System status: ACTIVE")
+    st.markdown("**Status:** 🟢 Connected to Database Middleware")
 
 # ==============================================================================
-# 4. DASHBOARD UI
+# MAIN DASHBOARD
 # ==============================================================================
 st.title("🚑 AAIPSI: Autonomous Medical Dispatch")
-col1, col2 = st.columns([1, 2])
+st.markdown("---")
+
+col1, col2 = st.columns([1.2, 2])
 
 with col1:
-    st.markdown('<p class="big-font">1. 911 Transcript Ingestion</p>', unsafe_allow_html=True)
-    scenario = st.selectbox("Select Scenario:", ["Penetrating trauma: Shot in the chest", "Cardiac arrest: Father non-responsive"])
-    transcript = st.text_area("Live Audio Feed:", value=scenario, height=150)
+    st.markdown('<p class="big-font">1. Incoming 911 Triage</p>', unsafe_allow_html=True)
+    scenario = st.selectbox("Select Live Scenario:", [
+        "myfatherisnotopeningb his eyese from 5 mins",
+        "Help, my friend was shot in the chest!"
+    ])
+    user_input = st.text_area("Audio Transcript Transcription:", value=scenario, height=100)
+    dispatch_btn = st.button("EXECUTE AAIPSI PROTOCOL", type="primary", use_container_width=True)
     
-    if st.button("EXECUTE AAIPSI AGENT", type="primary", use_container_width=True):
-        st.session_state.dispatch_data = None
-        
-        # Logic Switch: Cloud vs Local
-        if mode == "Cloud GPU (Kaggle)":
-            try:
-                resp = requests.post(api_url, json={"transcript": transcript}, timeout=10)
-                st.session_state.dispatch_data = resp.json()
-            except Exception as e:
-                st.error(f"Network Failure: {e}")
-        else:
-            # Simulated Response for offline demonstration
-            st.session_state.dispatch_data = {
-                "trauma_type": "Penetrating",
-                "dispatch_required": True,
-                "recommended_equipment": ["Tourniquet", "Chest Seal"]
-            }
-
-    st.markdown("### Agent Brain Console")
-    console_display = st.empty()
-    if 'dispatch_data' in st.session_state and st.session_state.dispatch_data:
-        console_display.markdown(f'<div class="console-box">{json.dumps(st.session_state.dispatch_data, indent=2)}</div>', unsafe_allow_html=True)
+    st.markdown("### Agent Telemetry")
+    console_placeholder = st.empty()
 
 with col2:
-    map_box = st.empty()
-    if 'dispatch_data' in st.session_state and st.session_state.dispatch_data:
-        data = st.session_state.dispatch_data
-        target = HOSPITALS.get(data.get("trauma_type"), HOSPITALS["Default"])
+    st.markdown('<p class="big-font">2. Live Autonomous Routing</p>', unsafe_allow_html=True)
+    map_placeholder = st.empty()
+    status_text = st.empty()
+    
+    view_state = pdk.ViewState(latitude=19.0450, longitude=72.8400, zoom=12, pitch=50)
+    map_placeholder.pydeck_chart(pdk.Deck(initial_view_state=view_state, map_style='mapbox://styles/mapbox/dark-v11'))
+
+# ==============================================================================
+# FIREBASE EXECUTION PIPELINE
+# ==============================================================================
+if dispatch_btn:
+    if not db_url.endswith("/"):
+        db_url += "/"
         
-        # Path simulation
-        amb_pos = [72.85, 19.01]
-        pat_pos = [72.82, 19.05]
+    with col1:
+        status_text.warning("📡 Dropping transcript into cloud database...")
         
-        route = fetch_route(amb_pos, pat_pos)
+        # 1. Write the transcript to Firebase
+        submit_payload = {"transcript": user_input, "status": "REQUESTED", "response_json": ""}
+        try:
+            requests.put(f"{db_url}pipeline.json", json=submit_payload)
+        except Exception as e:
+            st.error(f"Failed to write to database: {e}")
+            st.stop()
         
-        # Animation Loop
-        for i in range(0, len(route), 2):
-            layer = pdk.Layer("ScatterplotLayer", data=[{"pos": route[i]}], get_position="pos", get_fill_color=[255, 255, 255], get_radius=500)
-            map_box.pydeck_chart(pdk.Deck(initial_view_state=pdk.ViewState(latitude=19.04, longitude=72.84, zoom=12), layers=[layer]))
-            time.sleep(0.05)
+        # 2. Poll for Kaggle to complete the job
+        result = None
+        with st.spinner("Waiting for Kaggle GPU to process data..."):
+            for attempt in range(45): 
+                time.sleep(1)
+                try:
+                    check_res = requests.get(f"{db_url}pipeline.json").json()
+                    if check_res and check_res.get("status") == "COMPLETED":
+                        result = json.loads(check_res.get("response_json", "{}"))
+                        break
+                except:
+                    pass
+        
+        if result:
+            st.success("⚡ Analysis Complete!")
+            console_placeholder.markdown(f'<div class="console-box">{json.dumps(result, indent=2)}</div>', unsafe_allow_html=True)
+        else:
+            st.error("❌ Timeout: Make sure the listener loop is running in Kaggle.")
+
+    # ==============================================================================
+    # MAP ANIMATION
+    # ==============================================================================
+    if result and result.get("dispatch_required"):
+        with col2:
+            trauma = result.get("trauma_type", "Default")
+            target_hospital = HOSPITALS.get(trauma, HOSPITALS["Default"])
+            status_text.info(f"**Selected:** {target_hospital['name']} for {trauma} trauma.")
+            
+            amb_coords = [72.8561, 19.0176]
+            pat_coords = [72.8295, 19.0596]
+            hosp_coords = target_hospital["coords"]
+            
+            route_1 = get_osrm_route(amb_coords[0], amb_coords[1], pat_coords[0], pat_coords[1])
+            route_2 = get_osrm_route(pat_coords[0], pat_coords[1], hosp_coords[0], hosp_coords[1])
+            
+            layer_pat = pdk.Layer("ScatterplotLayer", data=[{"pos": pat_coords}], get_position="pos", get_fill_color=[255, 0, 0, 255], get_radius=300)
+            layer_hosp = pdk.Layer("ScatterplotLayer", data=[{"pos": hosp_coords}], get_position="pos", get_fill_color=[0, 0, 255, 255], get_radius=300)
+            layer_path1 = pdk.Layer("PathLayer", data=[{"path": route_1}], get_path="path", get_color=[255, 165, 0, 200], width_scale=20)
+            layer_path2 = pdk.Layer("PathLayer", data=[{"path": route_2}], get_path="path", get_color=[0, 255, 0, 200], width_scale=20)
+            
+            map_placeholder.pydeck_chart(pdk.Deck(layers=[layer_path1, layer_path2, layer_pat, layer_hosp], initial_view_state=view_state))
+            
+            status_text.warning("🚨 Ambulance Dispatched...")
+            for i in range(0, len(route_1), 4):
+                amb_layer = pdk.Layer("ScatterplotLayer", data=[{"pos": route_1[i]}], get_position="pos", get_fill_color=[255, 255, 255, 255], get_radius=400)
+                map_placeholder.pydeck_chart(pdk.Deck(layers=[layer_path1, layer_path2, layer_pat, layer_hosp, amb_layer], initial_view_state=view_state))
+                time.sleep(0.05)
+            
+            status_text.success(f"✅ Route to {target_hospital['name']} Active.")
